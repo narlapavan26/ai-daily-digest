@@ -1,0 +1,4 @@
+# .github/workflows/test-mcp.yml
+# Purpose: CI workflow to smoke-test MCP HTTP endpoints (health, sample fetch calls)
+# against a staging or production MCP base URL using repository secrets.
+# Not implemented yet — replace this comment block with a real workflow.

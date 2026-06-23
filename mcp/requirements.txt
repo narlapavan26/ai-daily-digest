@@ -1,0 +1,8 @@
+fastapi>=0.100
+fastmcp>=3.0
+pydantic>=2.0
+arxiv>=1.4.0
+httpx>=0.20
+feedparser>=6.0
+uvicorn[standard]>=0.20
+

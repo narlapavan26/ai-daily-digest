@@ -1,0 +1,5 @@
+# .github/workflows/daily-digest.yml
+# Purpose: Scheduled GitHub Actions workflow that runs the LangGraph digest_runner
+# (daily-digest) on a cron, loads secrets (MCP URL, bearer token, LLM keys),
+# writes digests/latest.md and archives digests/YYYY-MM-DD/, and optional publishers
+# (email, Telegram, Discord). Not implemented yet — replace this comment block with a real workflow.

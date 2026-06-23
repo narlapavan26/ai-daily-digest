@@ -1,0 +1,3 @@
+# .github/workflows/deploy-mcp.yml
+# Purpose: Optional automated deploy of the mcp/ package to Prefect Horizon (or another host)
+# on tag push or manual dispatch. Not implemented yet — replace this comment block with a real workflow.

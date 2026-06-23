@@ -1,0 +1,2 @@
+# digests/archive/
+# Place per-day folders here (e.g. 2026-04-08/) with digest.md, digest.html, digest_data.json when implementing automated commits.
