@@ -75,3 +75,4 @@ state/
 # Documentation (user requested not to push)
 docs/
 output.txt
+pyrefly.toml

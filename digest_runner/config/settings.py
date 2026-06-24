@@ -67,10 +67,12 @@ class DigestSettings(BaseSettings):
     # pyrefly: ignore [bad-assignment]
     mcp_base_url: AnyHttpUrl = Field(
         default="http://127.0.0.1:8000",
+        validation_alias=AliasChoices("MCP_BASE_URL", "MCP_SERVER_URL", "mcp_base_url"),
         description="Base URL of the MCP FastAPI server (no trailing slash).",
     )
     mcp_bearer_token: Optional[str] = Field(
         default=None,
+        validation_alias=AliasChoices("MCP_BEARER_TOKEN", "mcp_bearer_token"),
         min_length=8,
         max_length=2048,
         description="Optional Authorization bearer for Horizon-hosted MCP.",

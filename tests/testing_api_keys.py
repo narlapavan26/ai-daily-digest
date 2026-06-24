@@ -255,11 +255,51 @@ def test_email_smtp():
         print(f"  [ERROR] {err}")
         return {"status": "FAILED", "remarks": err}
 
+def test_mcp_server():
+    print("\n" + "=" * 60)
+    print("TESTING MCP SERVER CONNECTION")
+    print("=" * 60)
+    
+    mcp_url = str(settings.mcp_base_url).rstrip("/")
+    bearer = settings.mcp_bearer_token
+    
+    print(f"  MCP Server URL: {mcp_url}")
+    if bearer:
+        print("  Bearer Token: Configured (Hidden)")
+    else:
+        print("  Bearer Token: Not configured")
+        
+    headers = {}
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
+        
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            # Most FastMCP HTTP servers expose /docs or /sse, we'll just check if the server resolves
+            response = client.get(f"{mcp_url}/docs", headers=headers)
+            # Even if it's 404, if it connects and returns an HTTP response, it's alive!
+            if response.status_code in [200, 404, 401, 403]:
+                print(f"  [SUCCESS] Successfully connected to MCP Server! (HTTP {response.status_code})")
+                return {"status": "PASSED", "remarks": f"HTTP {response.status_code}"}
+            else:
+                err = f"Unexpected HTTP {response.status_code}"
+                print(f"  [ERROR] {err}")
+                return {"status": "FAILED", "remarks": err}
+    except httpx.HTTPStatusError as e:
+        err = f"HTTP {e.response.status_code}: {e.response.text}"
+        print(f"  [ERROR] {err}")
+        return {"status": "FAILED", "remarks": err}
+    except Exception as e:
+        err = f"Error: {e}"
+        print(f"  [ERROR] {err}")
+        return {"status": "FAILED", "remarks": err}
+
 if __name__ == "__main__":
     print("\n" + "#" * 60)
     print("STARTING FULL PIPELINE TEST")
     print("#" * 60)
     
+    mcp_res = test_mcp_server()
     llm_results = test_all_llms()
     discord_res = test_discord_webhook()
     telegram_res = test_telegram_bot()
@@ -277,11 +317,13 @@ if __name__ == "__main__":
     print(f"  {'PROVIDER'.ljust(w_prov)} | {'MODEL/TARGET'.ljust(w_model)} | {'STATUS'.ljust(w_stat)} | REMARKS")
     print("  " + "-" * 98)
     
+    print(f"  {'MCP SERVER'.ljust(w_prov)} | {str(settings.mcp_base_url).ljust(w_model)} | {mcp_res['status'].ljust(w_stat)} | {mcp_res['remarks']}")
+    print("  " + "-" * 98)
+    
     for provider, data in llm_results.items():
         status = data["status"]
         model = data["model"]
         remarks = str(data.get("remarks", ""))
-        # Truncate remarks if extremely long
         if len(remarks) > 80:
             remarks = remarks[:77] + "..."
         print(f"  {provider.ljust(w_prov)} | {model.ljust(w_model)} | {status.ljust(w_stat)} | {remarks}")
