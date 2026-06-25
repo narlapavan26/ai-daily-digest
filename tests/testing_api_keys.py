@@ -256,43 +256,80 @@ def test_email_smtp():
         return {"status": "FAILED", "remarks": err}
 
 def test_mcp_server():
+    """
+    Two-level MCP smoke test:
+      1. Connectivity check  — GET /docs on the Horizon gateway (HTTP 200)
+      2. Live tool smoke test — calls fetch_hackernews and fetch_rss via the
+         real MCP JSON-RPC protocol and verifies actual items are returned.
+    Failures at either level are reported separately so the root cause is clear.
+    """
     print("\n" + "=" * 60)
-    print("TESTING MCP SERVER CONNECTION")
+    print("TESTING MCP SERVER — CONNECTIVITY + LIVE DATA FETCH")
     print("=" * 60)
-    
+
     mcp_url = str(settings.mcp_base_url).rstrip("/")
-    bearer = settings.mcp_bearer_token
-    
-    print(f"  MCP Server URL: {mcp_url}")
-    if bearer:
-        print("  Bearer Token: Configured (Hidden)")
-    else:
-        print("  Bearer Token: Not configured")
-        
-    headers = {}
-    if bearer:
-        headers["Authorization"] = f"Bearer {bearer}"
-        
+    bearer  = settings.mcp_bearer_token
+
+    print(f"  MCP Server URL : {mcp_url}")
+    print(f"  Bearer Token   : {'Configured (Hidden)' if bearer else 'Not configured'}")
+
+    from urllib.parse import urlparse
+    parsed      = urlparse(mcp_url)
+    base_domain = f"{parsed.scheme}://{parsed.netloc}"
+
+    auth_headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+
+    # ── Level 1: Connectivity via /docs ────────────────────────────────────
+    print("\n  [1/2] Connectivity check (GET /docs) ...")
     try:
-        with httpx.Client(timeout=15.0) as client:
-            # Most FastMCP HTTP servers expose /docs or /sse, we'll just check if the server resolves
-            response = client.get(f"{mcp_url}/docs", headers=headers)
-            # Even if it's 404, if it connects and returns an HTTP response, it's alive!
-            if response.status_code in [200, 404, 401, 403]:
-                print(f"  [SUCCESS] Successfully connected to MCP Server! (HTTP {response.status_code})")
-                return {"status": "PASSED", "remarks": f"HTTP {response.status_code}"}
-            else:
-                err = f"Unexpected HTTP {response.status_code}"
-                print(f"  [ERROR] {err}")
-                return {"status": "FAILED", "remarks": err}
-    except httpx.HTTPStatusError as e:
-        err = f"HTTP {e.response.status_code}: {e.response.text}"
-        print(f"  [ERROR] {err}")
-        return {"status": "FAILED", "remarks": err}
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(f"{base_domain}/docs", headers=auth_headers)
+        if r.status_code == 200:
+            print(f"        [PASS] HTTP {r.status_code} OK — server is reachable")
+        else:
+            print(f"        [FAIL] HTTP {r.status_code} — cannot reach server")
+            return {"status": "FAILED", "remarks": f"Connectivity HTTP {r.status_code}"}
     except Exception as e:
-        err = f"Error: {e}"
-        print(f"  [ERROR] {err}")
-        return {"status": "FAILED", "remarks": err}
+        print(f"        [FAIL] {e}")
+        return {"status": "FAILED", "remarks": f"Connectivity error: {e}"}
+
+    # ── Level 2: Live tool call via MCP JSON-RPC ───────────────────────────
+    print("\n  [2/2] Live data smoke test via MCP JSON-RPC ...")
+
+    # Import the unified client — works for both local and Horizon
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from digest_runner.utils.mcp_client import post_fetch
+
+    smoke_sources = [
+        ("/fetch/hackernews", {"max_results": 3, "days_back": 2},  "HackerNews"),
+        ("/fetch/rss",        {"days_back": 2, "max_items_per_feed": 2,
+                               "use_verified_catalog": True},       "RSS"),
+    ]
+
+    all_passed = True
+    total_items = 0
+    for path, body, label in smoke_sources:
+        try:
+            result = post_fetch(path, body, timeout=60.0)
+            items  = result.get("items", [])
+            count  = len(items)
+            total_items += count
+            if count > 0:
+                print(f"        [PASS] {label:12s} — {count} items  "
+                      f"(e.g. '{items[0]['title'][:60]}')")
+            else:
+                print(f"        [WARN] {label:12s} — 0 items returned "
+                      f"(server OK but no fresh content right now)")
+        except Exception as e:
+            print(f"        [FAIL] {label:12s} — {e}")
+            all_passed = False
+
+    if all_passed:
+        remark = f"Connectivity OK | Live fetch OK ({total_items} items from smoke test)"
+        print(f"\n  [SUCCESS] MCP server is fully operational!")
+        return {"status": "PASSED", "remarks": remark}
+    else:
+        return {"status": "FAILED", "remarks": "Live tool call failed — check MCP logs"}
 
 if __name__ == "__main__":
     print("\n" + "#" * 60)

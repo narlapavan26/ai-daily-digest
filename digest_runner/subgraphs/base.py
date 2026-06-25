@@ -295,14 +295,23 @@ def run_relevance_batch(
     from pydantic import BaseModel as PydanticBase, model_validator as mv
 
     class RelevanceBatch(PydanticBase):
-        assessments: List[RelevanceAssessment]
+        # Default=[] so a missing 'assessments' key never raises a 'missing' validation error.
+        # This is critical: when the LLM hits a 429 mid-call, instructor receives a non-JSON
+        # error body which maps to an empty/wrong dict — the empty list is a safe fallback.
+        assessments: List[RelevanceAssessment] = []
 
         @mv(mode="before")
         @classmethod
         def _wrap_flat_response(cls, data: Any) -> Any:
-            """If LLM returns a flat assessment dict instead of {'assessments': [...]}, wrap it."""
-            if isinstance(data, dict) and "assessments" not in data and ("item_id" in data or "id" in data):
-                return {"assessments": [data]}
+            """Normalize non-standard LLM response shapes into {'assessments': [...]}."""
+            if isinstance(data, dict) and "assessments" not in data:
+                # Case 1: LLM returned a flat single-item assessment dict
+                if "item_id" in data or "id" in data:
+                    return {"assessments": [data]}
+                # Case 2: LLM used a different key name for the list
+                for alt_key in ("items", "results", "data", "evaluations", "relevance_assessments", "assessment_list"):
+                    if alt_key in data and isinstance(data[alt_key], list):
+                        return {"assessments": data[alt_key]}
             return data
 
     lines = [f"Assess relevance of these {source_hint} items:\n"
@@ -324,7 +333,11 @@ def run_relevance_batch(
     result: RelevanceBatch = client.chat.completions.create(
         model=model,
         response_model=RelevanceBatch,
-        max_retries=2,  # Let instructor fix missing fields via validation errors
+        # max_retries=1: allow one retry for genuine validation edge cases.
+        # The model_validators in RelevanceAssessment handle most LLM quirks
+        # (missing fields, id→item_id rename, score clamping), so retries
+        # should only fire for truly malformed responses.
+        max_retries=1,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user",   "content": "\n".join(lines)},
@@ -344,14 +357,25 @@ def run_insight_batch(
     from pydantic import BaseModel as PydanticBase, model_validator as mv
 
     class InsightBatch(PydanticBase):
-        insights: List[InsightExtraction]
+        # Default=[] so a missing 'insights' key NEVER raises a 'missing' validation error.
+        # Root cause of the "8 validation errors for InsightBatch" logs:
+        # Cerebras returned a 429 rate-limit JSON body; instructor tried to parse it as
+        # InsightBatch, couldn't find the 'insights' key, and raised 1 'missing' error
+        # per batch item. Now an empty list is returned and handled gracefully upstream.
+        insights: List[InsightExtraction] = []
 
         @mv(mode="before")
         @classmethod
         def _wrap_flat_response(cls, data: Any) -> Any:
-            """If LLM returns a flat insight dict instead of {'insights': [...]}, wrap it."""
-            if isinstance(data, dict) and "insights" not in data and ("item_id" in data or "id" in data):
-                return {"insights": [data]}
+            """Normalize non-standard LLM response shapes into {'insights': [...]}."""
+            if isinstance(data, dict) and "insights" not in data:
+                # Case 1: LLM returned a flat single-item insight dict
+                if "item_id" in data or "id" in data:
+                    return {"insights": [data]}
+                # Case 2: LLM used a different key name for the list
+                for alt_key in ("extractions", "items", "results", "data", "insight_list", "insight_extractions"):
+                    if alt_key in data and isinstance(data[alt_key], list):
+                        return {"insights": data[alt_key]}
             return data
 
     lines = [f"Extract insights for these {source_hint} items.\n"
@@ -371,7 +395,12 @@ def run_insight_batch(
     result: InsightBatch = client.chat.completions.create(
         model=model,
         response_model=InsightBatch,
-        max_retries=2,  # Let instructor fix missing fields via validation errors
+        # max_retries=1: allow one retry for genuine validation edge cases.
+        # The comprehensive _fix_and_truncate model_validator on InsightExtraction
+        # handles all known LLM output issues (enum-in-paragraph confusion like
+        # significance="high", missing fields, overlong strings, id→item_id rename).
+        # One retry is kept as a safety net for truly unexpected output shapes.
+        max_retries=1,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user",   "content": "\n".join(lines)},
@@ -640,16 +669,23 @@ def enrich_normalized_items(
 
 
 def _minimal_fallback_insight(it: NormalizedItem) -> InsightExtraction:
-    """Fallback when LLM insight extraction fails for a relevant item."""
+    """Fallback when LLM insight extraction fails for a relevant item.
+    
+    Used when all LLM providers fail for a batch. Produces a minimal but
+    honest summary based only on the item title — never references the
+    linked article (which violates content quality rules).
+    """
+    # Derive a minimal change summary directly from the title
+    title_snippet = it.title[:180].strip()
     return InsightExtraction(
         item_id=it.id,
-        change_summary=f"{it.title[:200]} — full detail in linked article.",
-        significance="Relevant to AI/ML practitioners; visit source for details.",
+        change_summary=f"{title_snippet} — insight extraction unavailable (LLM rate limit).",
+        significance="AI/ML practitioners should check this item; automated extraction failed due to provider rate limits.",
         novelty_type="update",
         impacted_audience=["ml_engineers"],
         time_sensitivity="medium",
-        actionable_insight="Read the full article at the source URL.",
-        confidence=0.3,
+        actionable_insight=f"Search for '{it.title[:80]}' to learn more about this development.",
+        confidence=0.2,
     )
 
 

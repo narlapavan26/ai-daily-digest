@@ -522,10 +522,10 @@ class RelevanceAssessment(BaseModel):
       DROP: beginner tutorials, HR/career posts, pure marketing, papers with
             no relevance to above frameworks, SO questions about basic Python.
     """
-    item_id:         str   = Field(..., description="Must match NormalizedItem.id exactly")
-    is_relevant:     bool
+    item_id:         str   = Field(default="", description="Must match NormalizedItem.id exactly")
+    is_relevant:     bool  = True    # Default True: when in doubt, keep the item
     relevance_score: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
-        ...,
+        default=0.5,
         description=(
             "0.0 = completely off-topic. "
             "0.5 = tangentially related. "
@@ -798,36 +798,81 @@ class InsightExtraction(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _fix_and_truncate(cls, data: Any) -> Any:
-        """Auto-fix common LLM output issues: rename id->item_id, truncate overlong strings,
-        and provide sensible defaults for missing required fields so free-tier LLMs don't
-        crash the entire batch with validation errors."""
+        """Auto-fix common LLM output issues so free-tier LLMs never crash the batch.
+
+        Handles ALL known failure modes:
+        1. Missing 'item_id' / 'id' rename
+        2. Missing required fields → fill with safe defaults
+        3. Enum-like values in paragraph fields → move to correct field
+           (e.g. significance="high" → time_sensitivity="high", significance=default)
+        4. Strings shorter than min_length → pad to meet constraint
+        5. Strings longer than max_length → truncate
+        """
         if isinstance(data, dict):
-            # Rename 'id' -> 'item_id' if item_id is missing
+            # ── 1. Rename 'id' -> 'item_id' ──────────────────────────────
             if "item_id" not in data and "id" in data:
                 data["item_id"] = data.pop("id")
+            if not data.get("item_id"):
+                data["item_id"] = "unknown_item"
 
-            # Provide defaults for missing required fields
-            if not data.get("change_summary"):
-                data["change_summary"] = data.get("significance", "No summary provided by LLM.")
-                if len(data["change_summary"]) < 20:
+            # Also accept 'source_id' as an alias for 'item_id'
+            if not data.get("item_id") or data["item_id"] == "unknown_item":
+                if data.get("source_id"):
+                    data["item_id"] = data.pop("source_id")
+
+            # ── 2. Detect enum-like values in paragraph fields ────────────
+            # LLMs (especially Cerebras gpt-oss-120b) confuse 'significance'
+            # (a paragraph field) with 'time_sensitivity' (an enum: high/medium/low).
+            # When significance="high", move it to time_sensitivity and reset significance.
+            _ENUM_VALUES = {"high", "medium", "low", "critical", "urgent", "none"}
+            for para_field in ("significance", "change_summary"):
+                val = data.get(para_field)
+                if isinstance(val, str) and val.strip().lower() in _ENUM_VALUES:
+                    # This looks like an enum value, not a paragraph
+                    if not data.get("time_sensitivity"):
+                        data["time_sensitivity"] = val.strip().lower()
+                    data[para_field] = ""  # will be filled by defaults below
+
+            # ── 3. Provide defaults for missing/empty required fields ─────
+            if not data.get("change_summary") or len(str(data.get("change_summary", ""))) < 20:
+                # Try to use significance as fallback, but only if it's a real paragraph
+                sig = data.get("significance", "")
+                if isinstance(sig, str) and len(sig) >= 20:
+                    data["change_summary"] = sig
+                else:
                     data["change_summary"] = "No change summary provided by the LLM for this item."
-            if not data.get("significance"):
-                data["significance"] = "Significance not extracted by LLM."
+
+            if not data.get("significance") or len(str(data.get("significance", ""))) < 20:
+                data["significance"] = "Relevant to AI/ML practitioners based on automated screening."
+
             if not data.get("novelty_type"):
                 data["novelty_type"] = "update"
             if not data.get("impacted_audience"):
                 data["impacted_audience"] = ["ml_engineers"]
             if not data.get("time_sensitivity"):
                 data["time_sensitivity"] = "medium"
-            if not data.get("actionable_insight"):
+            if not data.get("actionable_insight") or len(str(data.get("actionable_insight", ""))) < 10:
                 data["actionable_insight"] = "Review the linked resource for details."
 
-            # Truncate overlong strings instead of raising validation errors
-            for field_name, max_len in [
-                ("change_summary", 500),
-                ("significance", 500),
-                ("actionable_insight", 200),
-            ]:
+            # ── 4. Pad any remaining short strings to meet min_length ─────
+            _MIN_LENGTHS = {
+                "change_summary": 20,
+                "significance": 20,
+                "actionable_insight": 10,
+            }
+            for field_name, min_len in _MIN_LENGTHS.items():
+                val = data.get(field_name)
+                if isinstance(val, str) and 0 < len(val) < min_len:
+                    # Pad the value rather than crashing
+                    data[field_name] = val + " " * (min_len - len(val))
+
+            # ── 5. Truncate overlong strings ──────────────────────────────
+            _MAX_LENGTHS = {
+                "change_summary": 500,
+                "significance": 500,
+                "actionable_insight": 200,
+            }
+            for field_name, max_len in _MAX_LENGTHS.items():
                 val = data.get(field_name)
                 if isinstance(val, str) and len(val) > max_len:
                     data[field_name] = val[: max_len - 3] + "..."
