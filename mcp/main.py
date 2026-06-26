@@ -62,6 +62,12 @@ app.include_router(huggingface_router)
 app.include_router(reddit_router)
 app.include_router(stackoverflow_router)
 
+# ── Health check endpoint ─────────────────────────────────────────────────────
+@app.get("/health")
+def health_check():
+    """Lightweight health check for CI, Horizon, and monitoring."""
+    return {"status": "ok", "version": "1.0.0", "sources": 7}
+
 
 # ── FastMCP conversion (required for Prefect Horizon deployment) ───────────────
 # FastMCP wraps the FastAPI app into an MCP-compatible server.

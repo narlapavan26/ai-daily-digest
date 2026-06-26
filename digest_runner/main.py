@@ -45,8 +45,9 @@ def _load_env_into_os_environ() -> None:
             value = value.strip().strip('"').strip("'")
             if key and key not in os.environ:  # don't override existing env vars
                 os.environ[key] = value
-    except Exception:
-        pass  # don't crash if .env can't be read
+    except Exception as exc:
+        import warnings
+        warnings.warn(f"Failed to load .env file: {exc}", RuntimeWarning, stacklevel=2)
 
 
 # Load .env into os.environ immediately on import so API keys are always available
@@ -165,9 +166,17 @@ Examples:
         from digest_runner.publishers.telegram_publisher import publish_to_telegram
         from digest_runner.publishers.email_publisher import publish_to_email
         
-        publish_to_discord(output_path, selected)
-        publish_to_telegram(output_path, selected)
-        publish_to_email(output_path, selected)
+        publishers = [
+            ("Discord", publish_to_discord),
+            ("Telegram", publish_to_telegram),
+            ("Email", publish_to_email),
+        ]
+        for name, publisher in publishers:
+            try:
+                publisher(output_path, selected)
+                logger.info("Published to %s", name)
+            except Exception as pub_exc:
+                logger.error("%s publisher failed: %s", name, pub_exc)
         # ─────────────────────────────────────────────────────────────────────
 
         if errors:
