@@ -42,16 +42,15 @@ jobs:
 
       - name: Run source tests (non-Reddit)
         run: |
-          MCP_URL="${{ github.event.inputs.mcp_url }}"
-          if [ -z "$MCP_URL" ]; then
-            MCP_URL="http://localhost:8000"
+          export MCP_BASE_URL="${{ github.event.inputs.mcp_url }}"
+          if [ -z "$MCP_BASE_URL" ]; then
+            export MCP_BASE_URL="http://localhost:8000"
           fi
-          echo "Testing against: $MCP_URL"
+          echo "Testing against: $MCP_BASE_URL"
           # Note: these tests are standalone scripts, they don't use pytest markers
           # We run them directly and allow failures (they test real external APIs)
           python tests/test_arxiv.py || true
           python tests/test_hackernews.py || true
           python tests/test_stackoverflow.py || true
         env:
-          MCP_BASE_URL: http://localhost:8000
           GITHUB_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
