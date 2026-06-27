@@ -1,0 +1,96 @@
+name: Branch Push Pipeline Test
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'test/**'
+  workflow_dispatch:
+    inputs:
+      publish_live:
+        description: "Publish Live to Discord/Telegram? (Leave unchecked for safe Dry Run)"
+        type: boolean
+        default: false
+
+jobs:
+  run-tests:
+    name: "Run All Test Cases"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r mcp/requirements.txt
+          pip install -r digest_runner/requirements.txt
+          pip install pytest pytest-cov pytest-timeout
+
+      - name: Run all Unit Tests
+        run: |
+          python -m pytest tests/unit/ -v --tb=short
+        env:
+          GROQ_API_KEY: "dummy-key"
+          GEMINI_API_KEY: "dummy-key"
+
+  run-pipeline:
+    name: "Run Pipeline and Publish"
+    runs-on: ubuntu-latest
+    needs: run-tests  # This guarantees it waits for tests to pass!
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install all dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r mcp/requirements.txt
+          pip install -r digest_runner/requirements.txt
+
+      - name: Run full digest pipeline
+        run: |
+          ARGS="--output-dir outputs"
+          # By default on 'push', this is null. It's only 'true' if manually checked via workflow_dispatch.
+          if [ "${{ github.event.inputs.publish_live }}" != "true" ]; then
+            echo "Safe Mode: Running with --dry-run (Publishers disabled)"
+            ARGS="$ARGS --dry-run"
+          else
+            echo "Live Mode: Publishing to Discord/Telegram!"
+          fi
+          python -m digest_runner.main $ARGS
+        env:
+          MCP_BASE_URL: ${{ secrets.MCP_PRODUCTION_URL }}
+          MCP_BEARER_TOKEN: ${{ secrets.MCP_BEARER_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Upload digest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-test-digest-${{ github.run_id }}
+          path: outputs/
+          retention-days: 7
