@@ -2,7 +2,7 @@ name: Daily Digest
 
 on:
   schedule:
-    - cron: "30 1 * * *"
+    - cron: "30 1 * * *"  # 7:00 AM IST daily
   workflow_dispatch:
     inputs:
       sources:
@@ -34,6 +34,28 @@ jobs:
           pip install -r mcp/requirements.txt
           pip install -r digest_runner/requirements.txt
 
+      # ── Health check: ensure production MCP is alive before running ──────────
+      - name: Wait for MCP health check
+        run: |
+          HEALTH_URL="${{ secrets.MCP_SERVER_URL }}"
+          HEALTH_URL="${HEALTH_URL%/mcp}/health"
+          echo "Checking production MCP health at: $HEALTH_URL"
+
+          MAX_RETRIES=3
+          RETRY_DELAY=20
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$HEALTH_URL" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Production MCP is healthy (attempt $i)"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/$MAX_RETRIES failed (HTTP $HTTP_STATUS). Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+          done
+
+          echo "❌ Production MCP health check failed after $MAX_RETRIES attempts."
+          exit 1
+
       - name: Run digest pipeline
         run: |
           ARGS="--output-dir outputs"
@@ -43,6 +65,7 @@ jobs:
           if [ -n "${{ github.event.inputs.sources }}" ]; then
             ARGS="$ARGS --sources ${{ github.event.inputs.sources }}"
           fi
+          echo "Running: python -m digest_runner.main $ARGS"
           python -m digest_runner.main $ARGS
         env:
           MCP_BASE_URL: ${{ secrets.MCP_SERVER_URL }}
@@ -72,5 +95,3 @@ jobs:
           name: digest-${{ github.run_id }}
           path: outputs/
           retention-days: 30
-
-

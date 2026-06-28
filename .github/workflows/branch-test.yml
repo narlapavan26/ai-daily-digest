@@ -60,6 +60,63 @@ jobs:
           pip install -r mcp/requirements.txt
           pip install -r digest_runner/requirements.txt
 
+      # ── Dynamic MCP URL: derive branch-specific Horizon URL ─────────────────
+      # Prefect Horizon automatically deploys each branch at a predictable URL:
+      #   main  → https://ai-daily-digest-mcp.fastmcp.app/mcp  (from secret)
+      #   other → https://ai-daily-digest-mcp-{branch-slug}.fastmcp.app/mcp
+      #
+      # Branch slug rules (confirmed from fastmcp.com docs):
+      #   1. lowercase everything
+      #   2. replace '/', '_', spaces with '-'
+      #   3. collapse multiple consecutive hyphens into one
+      # Example: feature/ci-cd-pipeline-hardening → feature-ci-cd-pipeline-hardening
+      - name: Resolve MCP URL for this branch
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          echo "Current branch: $BRANCH"
+
+          if [ "$BRANCH" = "main" ]; then
+            MCP_URL="${{ secrets.MCP_SERVER_URL }}"
+            echo "Using production MCP URL (main branch)"
+          else
+            # Slugify: lowercase, replace /\_space with -, collapse multiple -
+            SLUG=$(echo "$BRANCH" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed 's|[/_ ]|-|g' \
+              | sed 's|-\{2,\}|-|g' \
+              | sed 's|-$||')
+            MCP_URL="https://ai-daily-digest-mcp-${SLUG}.fastmcp.app/mcp"
+            echo "Using branch-specific MCP URL for slug: $SLUG"
+          fi
+
+          echo "MCP_BASE_URL=$MCP_URL" >> $GITHUB_ENV
+          echo "Resolved MCP_BASE_URL: $MCP_URL"
+
+      # ── Health check: ensure the Horizon container is alive before running ───
+      # Retries up to 5 times with 30s delay (2.5 min total) to allow Horizon
+      # to finish deploying the container after the git push.
+      - name: Wait for MCP health check
+        run: |
+          HEALTH_URL="${MCP_BASE_URL%/mcp}/health"
+          echo "Checking MCP health at: $HEALTH_URL"
+
+          MAX_RETRIES=5
+          RETRY_DELAY=30
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$HEALTH_URL" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ MCP is healthy (attempt $i) — status $HTTP_STATUS"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/$MAX_RETRIES failed (HTTP $HTTP_STATUS). Waiting ${RETRY_DELAY}s for Horizon to finish deploying..."
+            sleep $RETRY_DELAY
+          done
+
+          echo "❌ MCP health check failed after $MAX_RETRIES attempts."
+          echo "   URL checked: $HEALTH_URL"
+          echo "   The Horizon container may not have deployed yet, or the URL is wrong."
+          exit 1
+
       - name: Run full digest pipeline
         run: |
           ARGS="--output-dir outputs"
@@ -70,9 +127,11 @@ jobs:
           else
             echo "Safe Mode: Publishers disabled by default"
           fi
+          echo "Running: python -m digest_runner.main $ARGS"
+          echo "MCP target: $MCP_BASE_URL"
           python -m digest_runner.main $ARGS
         env:
-          MCP_BASE_URL: ${{ secrets.MCP_SERVER_URL }}
+          # MCP_BASE_URL is already set in $GITHUB_ENV by the Resolve step above
           MCP_BEARER_TOKEN: ${{ secrets.MCP_BEARER_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
