@@ -22,7 +22,7 @@ def test_github_api():
         print("=" * 60)
         
         # Check for token
-        github_token = os.environ.get("GITHUB_TOKEN", "").strip('"').strip("'")
+        github_token = os.environ.get("GH_PAT_TOKEN", "").strip('"').strip("'")
         
         headers = {
             "Accept": "application/vnd.github+json",
@@ -34,7 +34,7 @@ def test_github_api():
             print("[OK] Using GitHub token for authentication\n")
         else:
             print("[WARNING] No GitHub token (60 requests/hour limit)")
-            print("   Set GITHUB_TOKEN for 5,000 requests/hour\n")
+            print("   Set GH_PAT_TOKEN for 5,000 requests/hour\n")
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Test 1: Search trending AI/ML repositories
@@ -71,7 +71,7 @@ def test_github_api():
                 
                 elif response.status_code == 403:
                     print(f"[WARNING] Rate limit exceeded (403)")
-                    print(f"   Add GITHUB_TOKEN for higher limits")
+                    print(f"   Add GH_PAT_TOKEN for higher limits")
                 else:
                     print(f"[ERROR] Error: Status {response.status_code}")
             
@@ -174,7 +174,7 @@ def test_github_api():
                     print(f"   Search API: {search['remaining']:,} / {search['limit']:,} remaining")
                     
                     if core['remaining'] < 100:
-                        print(f"\n  Low on requests! Consider adding GITHUB_TOKEN")
+                        print(f"\n  Low on requests! Consider adding GH_PAT_TOKEN")
             
             except Exception as e:
                 print(f"[ERROR] Error: {e}")
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         from datetime import datetime, timedelta
         
         three_days_ago = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
-        github_token = os.environ.get("GITHUB_TOKEN", "").strip('"').strip("'")
+        github_token = os.environ.get("GH_PAT_TOKEN", "").strip('"').strip("'")
         
         headers = {
             "Accept": "application/vnd.github+json",

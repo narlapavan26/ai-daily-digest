@@ -102,7 +102,7 @@ class TestRenderDigest:
             result = render_digest(state)
             content = Path(result["output_path"]).read_text(encoding="utf-8")
             assert content.startswith("#")
-            assert "AI/ML Daily Digest" in content
+            assert "The AI Daily Digest" in content
         finally:
             if env_backup is not None:
                 os.environ["DIGEST_OUTPUT_DIR"] = env_backup

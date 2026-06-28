@@ -1,0 +1,169 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop, "feature/**", "fix/**"]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".vscode/**"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: 1
+  PYTHONUNBUFFERED: 1
+
+jobs:
+  lint:
+    name: "Lint & Format"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Ruff lint (errors only)
+        run: ruff check . --select=E9,F63,F7,F82 --output-format=github
+
+      - name: Ruff format check
+        run: ruff format --check --diff .
+        continue-on-error: true
+
+  unit-tests:
+    name: "Unit: ${{ matrix.test-group.name }}"
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test-group:
+          - { name: "fast-fail",    path: "tests/unit/test_fast_fail_node.py" }
+          - { name: "fetch-node",   path: "tests/unit/test_fetch_node.py" }
+          - { name: "merger",       path: "tests/unit/test_merger_node.py" }
+          - { name: "normalize",    path: "tests/unit/test_normalize_node.py" }
+          - { name: "render",       path: "tests/unit/test_render_node.py" }
+          - { name: "drop-rate",    path: "tests/unit/test_drop_rate_fixes.py" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r digest_runner/requirements.txt
+          pip install pytest pytest-cov pytest-timeout
+
+      - name: "Run: ${{ matrix.test-group.name }}"
+        run: |
+          python -m pytest ${{ matrix.test-group.path }} \
+            -v --tb=short --timeout=60 \
+            --junitxml=test-results/${{ matrix.test-group.name }}.xml
+        env:
+          GROQ_API_KEY: "dummy-key-for-unit-tests"
+          GEMINI_API_KEY: "dummy-key-for-unit-tests"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test-group.name }}
+          path: test-results/
+          retention-days: 14
+
+  integration-test:
+    name: "Integration Test"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r digest_runner/requirements.txt
+          pip install pytest pytest-timeout
+
+      - name: Run integration test (skips if no MCP_BASE_URL)
+        run: |
+          python -m pytest tests/integration/test_full_pipeline.py \
+            -v --tb=long --timeout=120
+        env:
+          GROQ_API_KEY: "dummy-key-for-unit-tests"
+          GEMINI_API_KEY: "dummy-key-for-unit-tests"
+
+  schema-check:
+    name: "Schema Compatibility"
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r digest_runner/requirements.txt
+
+      - name: Validate MCP schema imports
+        working-directory: mcp
+        run: |
+          python -c "
+          from schemas.common import DigestItem, SourceResponse
+          DigestItem.model_rebuild()
+          SourceResponse.model_rebuild()
+          print('MCP schemas: OK')
+          "
+
+      - name: Validate digest_runner schema imports
+        run: |
+          python -c "
+          from digest_runner.schemas.digest_schemas import (
+              NormalizedItem, EnrichedItem, FinalDigestSchema,
+              SubgraphOutput, FastFailBatch
+          )
+          print('Runner schemas: OK')
+          "
+
+      - name: Check model_rebuild (FastMCP compat)
+        working-directory: mcp
+        run: |
+          python -c "
+          from schemas.common import DigestItem, SourceResponse
+          DigestItem.model_rebuild()
+          SourceResponse.model_rebuild()
+          print('model_rebuild(): OK')
+          "
