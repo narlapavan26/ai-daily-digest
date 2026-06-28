@@ -36,6 +36,8 @@ jobs:
 
       # ── Health check: ensure production MCP is alive before running ──────────
       - name: Wait for MCP health check
+        env:
+          MCP_BEARER_TOKEN: ${{ secrets.MCP_BEARER_TOKEN }}
         run: |
           HEALTH_URL="${{ secrets.MCP_SERVER_URL }}"
           HEALTH_URL="${HEALTH_URL%/mcp}/health"
@@ -44,12 +46,14 @@ jobs:
           MAX_RETRIES=3
           RETRY_DELAY=20
           for i in $(seq 1 $MAX_RETRIES); do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$HEALTH_URL" 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+              -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \
+              "$HEALTH_URL" 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "✅ Production MCP is healthy (attempt $i)"
               exit 0
             fi
-            echo "⏳ Attempt $i/$MAX_RETRIES failed (HTTP $HTTP_STATUS). Retrying in ${RETRY_DELAY}s..."
+            echo "⏳ Attempt $i/$MAX_RETRIES — HTTP $HTTP_STATUS. Retrying in ${RETRY_DELAY}s..."
             sleep $RETRY_DELAY
           done
 

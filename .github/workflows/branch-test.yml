@@ -93,28 +93,33 @@ jobs:
           echo "Resolved MCP_BASE_URL: $MCP_URL"
 
       # ── Health check: ensure the Horizon container is alive before running ───
-      # Retries up to 5 times with 30s delay (2.5 min total) to allow Horizon
+      # Retries up to 14 times with 30s delay (7 min total) to allow Horizon
       # to finish deploying the container after the git push.
+      # NOTE: Horizon requires Bearer auth even on /health — pass token in header.
       - name: Wait for MCP health check
+        env:
+          MCP_BEARER_TOKEN: ${{ secrets.MCP_BEARER_TOKEN }}
         run: |
           HEALTH_URL="${MCP_BASE_URL%/mcp}/health"
           echo "Checking MCP health at: $HEALTH_URL"
 
-          MAX_RETRIES=5
+          MAX_RETRIES=14
           RETRY_DELAY=30
           for i in $(seq 1 $MAX_RETRIES); do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$HEALTH_URL" 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+              -H "Authorization: Bearer ${MCP_BEARER_TOKEN}" \
+              "$HEALTH_URL" 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "✅ MCP is healthy (attempt $i) — status $HTTP_STATUS"
               exit 0
             fi
-            echo "⏳ Attempt $i/$MAX_RETRIES failed (HTTP $HTTP_STATUS). Waiting ${RETRY_DELAY}s for Horizon to finish deploying..."
+            echo "⏳ Attempt $i/$MAX_RETRIES — HTTP $HTTP_STATUS. Waiting ${RETRY_DELAY}s..."
             sleep $RETRY_DELAY
           done
 
-          echo "❌ MCP health check failed after $MAX_RETRIES attempts."
+          echo "❌ MCP health check failed after $MAX_RETRIES attempts (7 min)."
           echo "   URL checked: $HEALTH_URL"
-          echo "   The Horizon container may not have deployed yet, or the URL is wrong."
+          echo "   Last HTTP status — 401=auth issue, 404=wrong URL, 000=no response/still deploying"
           exit 1
 
       - name: Run full digest pipeline
