@@ -81,7 +81,7 @@ _PROVIDER_CONFIGS: Dict[LLMProvider, Dict[str, Any]] = {
         "model": "gemini-2.5-flash-lite",
     },
     LLMProvider.GITHUB: {
-        "key_field": "github_models_api_key",
+        "key_field": "gh_models_api_key",
         "base_url": "https://models.inference.ai.azure.com",
         "model": "gpt-4o-mini",
     },

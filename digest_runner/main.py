@@ -149,6 +149,11 @@ Examples:
         default="outputs",
         help="Directory to write the Markdown digest file. Default: outputs/",
     )
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        help="If set, publish the digest to Discord, Telegram, and Email (requires env vars). Default: False",
+    )
 
     args = parser.parse_args()
 
@@ -161,22 +166,26 @@ Examples:
         print(f"\n[OK] Digest saved to: {output_path}")
         print(f"     Items selected: {selected}")
         
-        # ── Trigger Publishers ───────────────────────────────────────────────
-        from digest_runner.publishers.discord_publisher import publish_to_discord
-        from digest_runner.publishers.telegram_publisher import publish_to_telegram
-        from digest_runner.publishers.email_publisher import publish_to_email
-        
-        publishers = [
-            ("Discord", publish_to_discord),
-            ("Telegram", publish_to_telegram),
-            ("Email", publish_to_email),
-        ]
-        for name, publisher in publishers:
-            try:
-                publisher(output_path, selected)
-                logger.info("Published to %s", name)
-            except Exception as pub_exc:
-                logger.error("%s publisher failed: %s", name, pub_exc)
+        # ── Trigger Publishers (if requested) ───────────────────────────────
+        if args.publish:
+            from digest_runner.publishers.discord_publisher import publish_to_discord
+            from digest_runner.publishers.telegram_publisher import publish_to_telegram
+            from digest_runner.publishers.email_publisher import publish_to_email
+            
+            publishers = [
+                ("Discord", publish_to_discord),
+                ("Telegram", publish_to_telegram),
+                ("Email", publish_to_email),
+            ]
+            for name, publisher in publishers:
+                try:
+                    publisher(output_path, selected)
+                    logger.info("Published to %s", name)
+                except Exception as pub_exc:
+                    logger.error("%s publisher failed: %s", name, pub_exc)
+        else:
+            logger.info("Publishing skipped (run with --publish to enable).")
+            print("[INFO] Publishing skipped (no --publish flag).")
         # ─────────────────────────────────────────────────────────────────────
 
         if errors:

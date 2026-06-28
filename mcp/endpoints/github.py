@@ -53,7 +53,7 @@ def fetch_github(req: GithubFetchRequest) -> SourceResponse:
     items:  List[DigestItem] = []
     errors: List[str]        = []
 
-    token = (os.environ.get("GITHUB_TOKEN") or "").strip()
+    token = (os.environ.get("GH_PAT_TOKEN") or "").strip()
     headers: Dict[str, str] = {
         "Accept":             "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",

@@ -45,8 +45,8 @@ class DigestSettings(BaseSettings):
     openrouter_api_key: Optional[str] = Field(
         default=None, validation_alias=AliasChoices("OPENROUTER_API_KEY", "openrouter_api_key")
     )
-    github_models_api_key: Optional[str] = Field(
-        default=None, validation_alias=AliasChoices("GITHUB_TOKEN", "GITHUB_MODELS_API_KEY")
+    gh_models_api_key: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("GH_PAT_TOKEN", "GH_MODELS_API_KEY")
     )
     ollama_api_key: Optional[str] = Field(
         default=None, validation_alias=AliasChoices("OLLAMA_API_KEY", "ollama_api_key")
