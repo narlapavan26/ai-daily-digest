@@ -22,3 +22,8 @@ supabase>=2.0.0
 python-telegram-bot>=20.0
 resend>=2.0.0
 requests>=2.31.0           # Discord webhooks via simple POST
+markdown>=3.5.0            # Markdown → HTML for email body
+
+# Config file parsing
+pyyaml>=6.0                # Read recipients.yaml for email subscriber list
+

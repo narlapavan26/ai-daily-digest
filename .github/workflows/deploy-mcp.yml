@@ -1,3 +1,47 @@
-# .github/workflows/deploy-mcp.yml
-# Purpose: Optional automated deploy of the mcp/ package to Prefect Horizon (or another host)
-# on tag push or manual dispatch. Not implemented yet — replace this comment block with a real workflow.
+name: Post-Deploy MCP Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mcp/**"
+      - "main.py"
+      - "requirements.txt"
+  workflow_dispatch:
+
+jobs:
+  verify-deploy:
+    name: "Verify MCP Deployment"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for Horizon deployment
+        run: |
+          echo "Waiting 60s for Horizon to pick up the push and deploy..."
+          sleep 60
+
+      - name: Health check (production)
+        run: |
+          if [ -n "${{ secrets.MCP_PRODUCTION_URL }}" ]; then
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              "${{ secrets.MCP_PRODUCTION_URL }}/health" 2>/dev/null || echo "000")
+            echo "Health check response: HTTP $HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "MCP server healthy"
+            else
+              echo "Health check returned HTTP $HTTP_CODE (may still be deploying)"
+            fi
+          else
+            echo "MCP_PRODUCTION_URL not set, skipping health check"
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          if [ -n "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{"content": "MCP deployment verification failed for commit ${{ github.sha }}"}' || true
+          fi

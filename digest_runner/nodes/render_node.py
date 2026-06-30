@@ -66,29 +66,36 @@ def _render_item(item: FinalDigestItem, *, heading_level: int = 3) -> str:
     """Render one FinalDigestItem to Markdown."""
     hashes = "#" * heading_level
     lines = [
-        f"{hashes} {item.headline}",
+        f"{hashes} 🔹 {item.headline}",
         "",
-        f"**What happened:** {item.what_happened}",
+        f"- **What happened:** {item.what_happened}",
+        f"- **Why it matters:** {item.why_it_matters}",
         "",
-        f"**Why it matters:** {item.why_it_matters}",
-        "",
-        f"**Key takeaway:** _{item.key_takeaway}_",
+        f"> **Key Takeaway:** _{item.key_takeaway}_",
     ]
 
     if item.action_hint:
-        # Skip generic/useless action hints that add no value
         hint_lower = item.action_hint.lower().strip().rstrip(".")
         if hint_lower not in _USELESS_ACTIONS and len(item.action_hint) > 20:
-            lines += ["", f"> 💡 **Action:** {item.action_hint}"]
+            lines += ["", f"*💡 **Actionable Insight:** {item.action_hint}*"]
 
     tags_str = ", ".join(f"`{t}`" for t in (item.tags or []))
-    date_str = item.published_at.strftime("%Y-%m-%d")
+    date_str = item.published_at.strftime("%b %d, %Y")
     sensitivity = _SENSITIVITY_EMOJI.get(item.time_sensitivity, "")
+    
+    footer_parts = [f"[🔗 Source Article]({item.url})"]
+    if hasattr(item.source, 'value'):
+        footer_parts.append(f"📡 `{item.source.value}`")
+    else:
+        footer_parts.append(f"📡 `{item.source}`")
+        
+    if tags_str: footer_parts.append(f"🏷️ {tags_str}")
+    if sensitivity: footer_parts.append(sensitivity)
+    footer_parts.append(f"📅 {date_str}")
+    
     lines += [
         "",
-        f"🔗 [{item.headline}]({item.url}) · `{item.source.value if hasattr(item.source, 'value') else item.source}` · {date_str}"
-        + (f" · {tags_str}" if tags_str else "")
-        + (f" · {sensitivity}" if sensitivity else ""),
+        " | ".join(footer_parts),
         "",
     ]
     return "\n".join(lines)
@@ -176,12 +183,11 @@ def render_markdown(digest: FinalDigestSchema) -> str:
     sections_md: List[str] = []
 
     # ── Header ────────────────────────────────────────────────────────────────
-    sections_md.append(f"# 🤖 AI/ML Daily Digest — {md.digest_date}")
+    sections_md.append(f"# ⚡ The AI Daily Digest — {md.digest_date}")
     sections_md.append("")
     sections_md.append(
-        f"> {md.total_selected} items curated from {md.total_raw_items} reviewed"
+        f"> **{md.total_selected} items curated** from {md.total_raw_items} reviewed across {sources_str}."
     )
-    sections_md.append(f"> Sources: {sources_str}")
     sections_md.append("")
     sections_md.append("---")
     sections_md.append("")

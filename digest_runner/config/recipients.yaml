@@ -1,0 +1,20 @@
+# ============================================================
+# AI Daily Digest — Email Recipients
+# ============================================================
+# Add or remove email addresses here and commit the change.
+# No .env update, no GitHub Secrets update needed — ever.
+#
+# Rules:
+#   - One email per line under the 'recipients' key
+#   - Lines starting with # are comments (ignored)
+#   - Blank lines are ignored
+#   - The digest is sent to ALL recipients in this list
+#
+# To add a new subscriber: just add a line here and push.
+# To remove a subscriber: delete their line and push.
+# ============================================================
+
+recipients:
+  - pavankumarnarla26@gmail.com
+  - narla.pavankumar26@gmail.com
+  - happyfamily110705@gmail.com

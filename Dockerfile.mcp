@@ -1,0 +1,37 @@
+# Dockerfile.mcp
+# Containerized MCP server for local testing and alternative deployments.
+# Production deployment is via Prefect Horizon (auto-deploy on git push).
+#
+# Build:  docker build -f Dockerfile.mcp -t ai-digest-mcp .
+# Run:    docker run -p 8000:8000 --env-file .env ai-digest-mcp
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files first (for Docker layer caching)
+COPY requirements.txt ./
+COPY mcp/requirements.txt ./mcp/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt -r mcp/requirements.txt
+
+# Copy application code
+COPY main.py ./
+COPY mcp/ ./mcp/
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the server
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
