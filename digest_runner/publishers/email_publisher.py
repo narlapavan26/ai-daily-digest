@@ -120,43 +120,55 @@ def publish_to_email(digest_path: str, total_items: int) -> bool:
         html_content = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
         css_style = """
         <style>
+            /* Shadcn/Aceternity Inspired Email UI */
             body {
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                 max-width: 800px;
                 margin: 0 auto;
-                padding: 30px 20px;
-                background-color: #f8fafc;
-                color: #334155;
-                line-height: 1.6;
+                padding: 40px 20px;
+                background-color: #fafafa;
+                color: #09090b; /* zinc-950 */
+                line-height: 1.7;
+                -webkit-font-smoothing: antialiased;
             }
-            h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; text-align: center; font-size: 28px; }
-            h2 { color: #1e293b; margin-top: 40px; font-size: 22px; }
-            h3 { color: #2563eb; font-size: 18px; margin-bottom: 5px; }
-            a { color: #3b82f6; text-decoration: none; font-weight: 500; }
-            a:hover { text-decoration: underline; }
+            .email-container {
+                background: #ffffff;
+                padding: 48px;
+                border-radius: 16px;
+                border: 1px solid #e4e4e7; /* zinc-200 */
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            }
+            h1 { color: #09090b; border-bottom: 1px solid #e4e4e7; padding-bottom: 16px; text-align: left; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; }
+            h2 { color: #18181b; margin-top: 48px; font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }
+            h3 { color: #27272a; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+            p { color: #3f3f46; /* zinc-700 */ font-size: 15px; }
+            a { color: #09090b; text-decoration: underline; text-underline-offset: 4px; font-weight: 500; transition: color 0.2s; }
+            a:hover { color: #71717a; } /* zinc-500 */
             blockquote {
-                border-left: 4px solid #3b82f6;
-                background: #eff6ff;
-                margin: 15px 0;
-                padding: 15px 20px;
+                border-left: 2px solid #09090b;
+                background: #f4f4f5; /* zinc-100 */
+                margin: 24px 0;
+                padding: 16px 24px;
                 border-radius: 0 8px 8px 0;
-                font-style: italic;
-                color: #1e40af;
+                font-style: normal;
+                color: #27272a; /* zinc-800 */
+                font-size: 15px;
             }
-            hr { border: 0; height: 1px; background: #e2e8f0; margin: 30px 0; }
-            ul { padding-left: 20px; }
-            li { margin-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-            th { background-color: #f1f5f9; font-weight: 600; color: #475569; }
-            code { background-color: #f1f5f9; color: #db2777; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-            pre { background-color: #1e293b; color: #f8fafc; padding: 15px; border-radius: 8px; overflow-x: auto; }
-            pre code { background-color: transparent; color: inherit; padding: 0; }
+            hr { border: 0; height: 1px; background: #e4e4e7; margin: 40px 0; }
+            ul { padding-left: 24px; color: #3f3f46; }
+            li { margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 14px; text-align: left; }
+            th, td { padding: 12px 16px; border-bottom: 1px solid #e4e4e7; }
+            th { color: #71717a; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
+            td { color: #3f3f46; }
+            code { background-color: #f4f4f5; color: #09090b; padding: 2px 6px; border-radius: 4px; font-size: 0.875em; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border: 1px solid #e4e4e7; }
+            pre { background-color: #09090b; color: #fafafa; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+            pre code { background-color: transparent; color: inherit; padding: 0; border: none; }
         </style>
         """
         html_content = (
             f"<html><head>{css_style}</head><body>"
-            f"<div style='background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);'>"
+            f"<div class='email-container'>"
             f"{html_content}"
             f"</div></body></html>"
         )
