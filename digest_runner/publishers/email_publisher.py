@@ -118,9 +118,47 @@ def publish_to_email(digest_path: str, total_items: int) -> bool:
 
     if HAS_MARKDOWN:
         html_content = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
+        css_style = """
+        <style>
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 30px 20px;
+                background-color: #f8fafc;
+                color: #334155;
+                line-height: 1.6;
+            }
+            h1 { color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; text-align: center; font-size: 28px; }
+            h2 { color: #1e293b; margin-top: 40px; font-size: 22px; }
+            h3 { color: #2563eb; font-size: 18px; margin-bottom: 5px; }
+            a { color: #3b82f6; text-decoration: none; font-weight: 500; }
+            a:hover { text-decoration: underline; }
+            blockquote {
+                border-left: 4px solid #3b82f6;
+                background: #eff6ff;
+                margin: 15px 0;
+                padding: 15px 20px;
+                border-radius: 0 8px 8px 0;
+                font-style: italic;
+                color: #1e40af;
+            }
+            hr { border: 0; height: 1px; background: #e2e8f0; margin: 30px 0; }
+            ul { padding-left: 20px; }
+            li { margin-bottom: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { background-color: #f1f5f9; font-weight: 600; color: #475569; }
+            code { background-color: #f1f5f9; color: #db2777; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+            pre { background-color: #1e293b; color: #f8fafc; padding: 15px; border-radius: 8px; overflow-x: auto; }
+            pre code { background-color: transparent; color: inherit; padding: 0; }
+        </style>
+        """
         html_content = (
-            "<html><body style='font-family: sans-serif; max-width: 800px;"
-            f" margin: 0 auto; padding: 20px;'>{html_content}</body></html>"
+            f"<html><head>{css_style}</head><body>"
+            f"<div style='background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);'>"
+            f"{html_content}"
+            f"</div></body></html>"
         )
     else:
         logger.warning("Markdown library not installed. Falling back to plain text email.")
