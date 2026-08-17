@@ -336,6 +336,11 @@ def run_final_llm(state: DigestRunState) -> dict:
     subgraph_outputs = state.get("subgraph_outputs") or []
     run_date = state.get("run_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
+    # ── Limit to top 10 important items ───────────────────────────────────────
+    # Sort by time sensitivity (HIGH first) and then relevance score
+    merged_items.sort(key=lambda x: (x.time_sensitivity == TimeSensitivity.HIGH, x.relevance_score), reverse=True)
+    merged_items = merged_items[:10]
+
     logger.info("final_llm_node: processing %d merged items", len(merged_items))
 
     if not merged_items:

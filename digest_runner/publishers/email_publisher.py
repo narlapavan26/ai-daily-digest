@@ -118,9 +118,59 @@ def publish_to_email(digest_path: str, total_items: int) -> bool:
 
     if HAS_MARKDOWN:
         html_content = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
+        css_style = """
+        <style>
+            /* Shadcn/Aceternity Inspired Email UI */
+            body {
+                font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 40px 20px;
+                background-color: #fafafa;
+                color: #09090b; /* zinc-950 */
+                line-height: 1.7;
+                -webkit-font-smoothing: antialiased;
+            }
+            .email-container {
+                background: #ffffff;
+                padding: 48px;
+                border-radius: 16px;
+                border: 1px solid #e4e4e7; /* zinc-200 */
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            }
+            h1 { color: #09090b; border-bottom: 1px solid #e4e4e7; padding-bottom: 16px; text-align: left; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; }
+            h2 { color: #18181b; margin-top: 48px; font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }
+            h3 { color: #27272a; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+            p { color: #3f3f46; /* zinc-700 */ font-size: 15px; }
+            a { color: #09090b; text-decoration: underline; text-underline-offset: 4px; font-weight: 500; transition: color 0.2s; }
+            a:hover { color: #71717a; } /* zinc-500 */
+            blockquote {
+                border-left: 2px solid #09090b;
+                background: #f4f4f5; /* zinc-100 */
+                margin: 24px 0;
+                padding: 16px 24px;
+                border-radius: 0 8px 8px 0;
+                font-style: normal;
+                color: #27272a; /* zinc-800 */
+                font-size: 15px;
+            }
+            hr { border: 0; height: 1px; background: #e4e4e7; margin: 40px 0; }
+            ul { padding-left: 24px; color: #3f3f46; }
+            li { margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; margin: 32px 0; font-size: 14px; text-align: left; }
+            th, td { padding: 12px 16px; border-bottom: 1px solid #e4e4e7; }
+            th { color: #71717a; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
+            td { color: #3f3f46; }
+            code { background-color: #f4f4f5; color: #09090b; padding: 2px 6px; border-radius: 4px; font-size: 0.875em; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border: 1px solid #e4e4e7; }
+            pre { background-color: #09090b; color: #fafafa; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+            pre code { background-color: transparent; color: inherit; padding: 0; border: none; }
+        </style>
+        """
         html_content = (
-            "<html><body style='font-family: sans-serif; max-width: 800px;"
-            f" margin: 0 auto; padding: 20px;'>{html_content}</body></html>"
+            f"<html><head>{css_style}</head><body>"
+            f"<div class='email-container'>"
+            f"{html_content}"
+            f"</div></body></html>"
         )
     else:
         logger.warning("Markdown library not installed. Falling back to plain text email.")
